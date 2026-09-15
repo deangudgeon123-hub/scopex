@@ -1,41 +1,27 @@
 # SCOPEX
 
-SCOPEX is a website-security product concept focused on making security findings understandable to non-security users.
+Website security made understandable for business owners.
 
-## Current state
+## Run
 
-This branch contains the **frontend/UX shell only**. Scanner integrations, authentication, persistence, verification, billing and backend jobs are intentionally not implemented yet.
-
-### Included
-
-- Responsive Next.js dashboard shell
-- Security posture score UI
-- Plain-English findings view
-- Severity filters
-- Protected website / asset card
-- Scan history and recent activity panels
-- Interactive "Run security scan" modal
-- Authorised-target UX messaging
-- Mock/demo data that can be replaced with API data later
-
-## Run locally
-
-```bash
+```sh
 npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000`.
+The existing dark dashboard runs in **demo mode** without credentials. All displayed demo findings, scores and verification badges are sample data. Live scanning is disabled.
 
-## Backend handoff
+## App foundation
 
-The primary integration points are in `app/page.tsx`:
+- Supabase migrations for workspaces, projects, assets, verification, scopes/policies, scans/jobs/events, canonical findings, scanner instances, evidence, retests and audit logs.
+- Workspace RLS, constrained client writes and composite tenant foreign keys.
+- Shared TypeScript domain contracts and separate demo/Supabase data providers.
+- Cookie-based Supabase clients, server-only services and a read-only dashboard API.
+- Loading, empty and error states; no real security scoring yet.
 
-- Replace the `findings` mock array with persisted findings/API data.
-- Replace the posture score and counters with calculated backend values.
-- Wire `Run security scan` to verified assets and a scan-job API.
-- Replace the example asset with real user assets.
-- Connect scan history/activity to persisted scan runs.
-- Add authentication and workspace/account state.
+See [foundation setup and architecture](docs/foundation.md) for database activation, the permissions model, current limitations and remaining integrations. Sign-in/onboarding and ownership verification execution are future work.
 
-The current UI deliberately does **not** execute security tests.
+```sh
+npm test
+npm run build
+```

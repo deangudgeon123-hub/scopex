@@ -1521,3 +1521,14 @@ input:focus-visible {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Foundation feedback uses the existing dashboard palette and controls. */
+.demo-label { display: inline-block; margin-top: 7px; color: var(--accent); font-size: 11px; }
+.empty-state { padding: 22px 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.foundation-state { width: min(560px, calc(100% - 32px)); margin: 12vh auto auto; padding: 30px; }
+.foundation-state p { color: var(--muted); line-height: 1.6; }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+.severity-informational { color: var(--muted); background: var(--panel-3); }
+.severity-label-informational { color: var(--muted); }
+
+.score-ring.unscored { background: var(--panel-3); }
