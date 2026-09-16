@@ -34,6 +34,11 @@ function validateProbeUrl(value: string): URL {
  return url;
 }
 
+function certificateName(value: string | string[] | undefined): string | null {
+ if (Array.isArray(value)) return value[0] ?? null;
+ return value ?? null;
+}
+
 export async function probeHttpHead(value: string, timeoutMs = 8000, resolver?: AddressResolver): Promise<HttpProbeResult> {
  const url = validateProbeUrl(value);
  const [target] = await resolvePublicAddresses(url.hostname, resolver);
@@ -101,8 +106,8 @@ export async function probeTls(hostname: string, timeoutMs = 8000, resolver?: Ad
     cipher: cipher?.name ?? null,
     validFrom: certificate?.valid_from ?? null,
     validTo: certificate?.valid_to ?? null,
-    subjectCn: certificate?.subject?.CN ?? null,
-    issuerCn: certificate?.issuer?.CN ?? null,
+    subjectCn: certificateName(certificate?.subject?.CN),
+    issuerCn: certificateName(certificate?.issuer?.CN),
     fingerprint256: certificate?.fingerprint256 ?? null,
     remoteAddress: target.address,
    };
