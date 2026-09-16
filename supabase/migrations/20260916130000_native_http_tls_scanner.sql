@@ -1,4 +1,7 @@
--- Stage 3 worker-facing dev RPCs. Raw observations live in scan_observations.
+-- Stage 3 worker-facing dev RPCs. Raw observations are evidence inputs, not findings.
+
+alter table public.scan_observations
+ add column if not exists observed_url text check (observed_url is null or length(observed_url) <= 2048);
 
 create or replace function public.lease_next_operator_scan(p_token text, p_worker_id text)
 returns table(
@@ -73,6 +76,7 @@ declare
  v_kind text;
  v_status text;
  v_summary text;
+ v_observed_url text;
  v_data jsonb;
  v_count integer;
 begin
@@ -96,17 +100,19 @@ begin
   v_kind := case trim(coalesce(v_item->>'kind','')) when 'headers' then 'header' when 'metadata' then 'network' else trim(coalesce(v_item->>'kind','')) end;
   v_status := case trim(coalesce(v_item->>'outcome','')) when 'warning' then 'warn' else trim(coalesce(v_item->>'outcome','')) end;
   v_summary := trim(coalesce(v_item->>'summary',''));
+  v_observed_url := nullif(trim(coalesce(v_item->>'observed_url','')), '');
   v_data := coalesce(v_item->'data', '{}'::jsonb);
   if length(v_key) < 1 or length(v_key) > 120
      or v_kind not in ('http','tls','header','redirect','network')
      or v_status not in ('pass','warn','info','error')
      or length(v_summary) < 1 or length(v_summary) > 500
+     or (v_observed_url is not null and length(v_observed_url) > 2048)
      or jsonb_typeof(v_data) <> 'object'
      or octet_length(v_data::text) > 8192 then
    raise exception 'INVALID_OBSERVATION' using errcode='22023';
   end if;
-  insert into public.scan_observations(organization_id,scan_id,asset_id,observation_key,kind,status,summary,data)
-  values(v_context.organization_id,p_scan_id,v_asset_id,v_key,v_kind,v_status,v_summary,v_data);
+  insert into public.scan_observations(organization_id,scan_id,asset_id,observation_key,kind,status,summary,observed_url,data)
+  values(v_context.organization_id,p_scan_id,v_asset_id,v_key,v_kind,v_status,v_summary,v_observed_url,v_data);
  end loop;
 
  update public.scan_jobs set status='completed', lease_expires_at=null
