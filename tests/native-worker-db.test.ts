@@ -36,10 +36,10 @@ test('native worker leases a queued scan and persists bounded observations', asy
   assert.equal(lease.rows[0].origin, 'https://example.com');
 
   const observations = [
-   { check_id: 'https_response', kind: 'http', outcome: 'pass', observed_url: 'https://example.com/', data: { status: 200 } },
-   { check_id: 'http_to_https', kind: 'redirect', outcome: 'pass', observed_url: 'http://example.com/', data: { status: 308, location: 'https://example.com/' } },
-   { check_id: 'security_headers', kind: 'headers', outcome: 'info', observed_url: 'https://example.com/', data: { strict_transport_security: true } },
-   { check_id: 'tls_handshake', kind: 'tls', outcome: 'pass', observed_url: 'https://example.com/', data: { protocol: 'TLSv1.3' } },
+   { check_id: 'https_response', kind: 'http', outcome: 'pass', summary: 'HTTPS root responded.', observed_url: 'https://example.com/', data: { status: 200 } },
+   { check_id: 'http_to_https', kind: 'redirect', outcome: 'pass', summary: 'HTTP redirects to same-host HTTPS.', observed_url: 'http://example.com/', data: { status: 308, location: 'https://example.com/' } },
+   { check_id: 'security_headers', kind: 'headers', outcome: 'info', summary: 'Recorded presence of selected response security headers.', observed_url: 'https://example.com/', data: { strict_transport_security: true } },
+   { check_id: 'tls_handshake', kind: 'tls', outcome: 'pass', summary: 'TLS handshake and certificate validation succeeded.', observed_url: 'https://example.com/', data: { protocol: 'TLSv1.3' } },
   ];
   await db.query(`select public.complete_operator_scan_native($1,$2,$3::jsonb,$4)`, [scanId,TOKEN,JSON.stringify(observations),1]);
 
@@ -47,8 +47,9 @@ test('native worker leases a queued scan and persists bounded observations', asy
   const status = await db.query<{status:string;checks_run:number;pages_checked:number}>(`select status,checks_run,pages_checked from public.scans where id=$1`, [scanId]);
   assert.deepEqual(status.rows[0], { status: 'completed', checks_run: 4, pages_checked: 1 });
 
-  const stored = await db.query<{check_id:string}>(`select check_id from public.scan_observations where scan_id=$1 order by check_id`, [scanId]);
-  assert.deepEqual(stored.rows.map((row) => row.check_id), ['http_to_https','https_response','security_headers','tls_handshake']);
+  const stored = await db.query<{observation_key:string;observed_url:string|null}>(`select observation_key,observed_url from public.scan_observations where scan_id=$1 order by observation_key`, [scanId]);
+  assert.deepEqual(stored.rows.map((row) => row.observation_key), ['http_to_https','https_response','security_headers','tls_handshake']);
+  assert.equal(stored.rows.find((row) => row.observation_key === 'https_response')?.observed_url, 'https://example.com/');
 
   await db.exec('set role authenticated');
   await assert.rejects(db.query(`select * from public.lease_next_operator_scan($1,$2)`, [TOKEN,'worker-test']), /permission denied/);
@@ -65,7 +66,7 @@ test('native completion rejects malformed observation payloads atomically', asyn
   const scanId = queued.rows[0].request_operator_scan;
   await db.query(`select * from public.lease_next_operator_scan($1,$2)`, [TOKEN,'worker-test']);
   await assert.rejects(
-   db.query(`select public.complete_operator_scan_native($1,$2,$3::jsonb,$4)`, [scanId,TOKEN,JSON.stringify([{ check_id: 'BAD ID', kind: 'http', outcome: 'pass', data: {} }]),1]),
+   db.query(`select public.complete_operator_scan_native($1,$2,$3::jsonb,$4)`, [scanId,TOKEN,JSON.stringify([{ check_id: 'BAD ID', kind: 'http', outcome: 'pass', summary: 'bad', data: {} }]),1]),
    /INVALID_OBSERVATION/,
   );
   await db.exec('reset role');
