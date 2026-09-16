@@ -102,7 +102,7 @@ begin
   v_summary := trim(coalesce(v_item->>'summary',''));
   v_observed_url := nullif(trim(coalesce(v_item->>'observed_url','')), '');
   v_data := coalesce(v_item->'data', '{}'::jsonb);
-  if length(v_key) < 1 or length(v_key) > 120
+  if length(v_key) < 1 or length(v_key) > 120 or v_key !~ '^[a-z0-9_]+$'
      or v_kind not in ('http','tls','header','redirect','network')
      or v_status not in ('pass','warn','info','error')
      or length(v_summary) < 1 or length(v_summary) > 500
