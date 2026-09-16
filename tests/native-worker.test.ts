@@ -37,12 +37,14 @@ test('service-role worker claims a queued scan, stores observations, and complet
   await db.query(`select public.finish_operator_scan($1,$2,$3,$4)`, [scanId,2,2,null]);
   const observations = await db.query<{observation_key:string}>(`select observation_key from public.scan_observations where scan_id=$1 order by observation_key`, [scanId]);
   assert.deepEqual(observations.rows.map((row) => row.observation_key), ['redirect.http_to_https','tls.protocol']);
+  const persisted = await db.query<{status:string;checks_run:number;pages_checked:number}>(`select status,checks_run,pages_checked from public.scans where id=$1`, [scanId]);
+  assert.equal(persisted.rows[0].status, 'completed');
+  assert.equal(persisted.rows[0].checks_run, 2);
+  assert.equal(persisted.rows[0].pages_checked, 2);
 
   await db.exec('set role anon');
-  const status = await db.query<{status:string;checks_run:number;pages_checked:number}>(`select status,checks_run,pages_checked from public.get_operator_scan_status($1,$2)`, [scanId,TOKEN]);
+  const status = await db.query<{status:string}>(`select status from public.get_operator_scan_status($1,$2)`, [scanId,TOKEN]);
   assert.equal(status.rows[0].status, 'completed');
-  assert.equal(status.rows[0].checks_run, 2);
-  assert.equal(status.rows[0].pages_checked, 2);
 
   await db.exec('set role authenticated');
   await assert.rejects(db.query(`select * from public.claim_operator_scan($1)`, ['not-allowed']), /permission denied/);
