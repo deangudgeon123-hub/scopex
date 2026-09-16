@@ -18,6 +18,7 @@ export interface NativeScanInput {
  origin: string;
  timeoutMs?: number;
  maxRequests?: number;
+ requestsPerSecond?: number;
 }
 
 export interface NativeScanResult {
@@ -29,6 +30,7 @@ export interface NativeScanResult {
 type NativeScanDependencies = {
  httpProbe?: (url: string, timeoutMs?: number) => Promise<HttpProbeResult>;
  tlsProbe?: (hostname: string, timeoutMs?: number) => Promise<TlsProbeResult>;
+ sleep?: (ms: number) => Promise<void>;
 };
 
 function observation(observation_key: string, kind: ObservationKind, status: ObservationStatus, summary: string, data: ObservationData = {}): NativeObservation {
@@ -101,8 +103,10 @@ export async function scanNativeConfiguration(input: NativeScanInput, dependenci
  const origin = validatedOrigin(hostname, input.origin);
  const timeoutMs = Math.min(Math.max(input.timeoutMs ?? 8000, 1000), 15000);
  const maxRequests = Math.min(Math.max(input.maxRequests ?? 2, 0), 2);
+ const requestsPerSecond = Math.min(Math.max(input.requestsPerSecond ?? 1, 1), 5);
  const httpProbe = dependencies.httpProbe ?? probeHttpHead;
  const tlsProbe = dependencies.tlsProbe ?? probeTls;
+ const sleep = dependencies.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
  const observations: NativeObservation[] = [];
  let pagesChecked = 0;
  let requestsMade = 0;
@@ -119,6 +123,7 @@ export async function scanNativeConfiguration(input: NativeScanInput, dependenci
  }
 
  if (maxRequests >= 2) {
+  await sleep(Math.ceil(1000 / requestsPerSecond));
   requestsMade += 1;
   try {
    const https = await httpProbe(`https://${hostname}/`, timeoutMs);
