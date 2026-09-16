@@ -13,6 +13,7 @@ test('migration applies and isolates tenants; trusted records cannot be forged',
  grant usage on schema auth to authenticated,anon; grant execute on function auth.uid() to authenticated,anon;
  insert into auth.users values ('${A}'),('${B}');`);
  for (const file of readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort()) await db.exec(readFileSync(`supabase/migrations/${file}`, 'utf8'));
+ await db.exec(readFileSync('supabase/verify.sql', 'utf8'));
  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${A}'`);
  const orgA = (await db.query<{id:string}>(`insert into organizations(owner_id,name) values ('${A}','A') returning id`)).rows[0].id;
  const projectA = (await db.query<{id:string}>(`insert into projects(organization_id,name) values ('${orgA}','A project') returning id`)).rows[0].id;
