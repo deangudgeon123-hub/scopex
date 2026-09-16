@@ -101,6 +101,10 @@ async function requestRoot(protocol: 'http:' | 'https:', hostname: string, timeo
  });
 }
 
+function firstDnValue(value: string | string[] | undefined): string | null {
+ return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
 async function inspectTls(hostname: string, timeoutMs: number): Promise<TlsSnapshot> {
  const resolved = await resolvePublicHost(hostname);
  return new Promise((resolve, reject) => {
@@ -117,8 +121,8 @@ async function inspectTls(hostname: string, timeoutMs: number): Promise<TlsSnaps
     valid_from: certificate.valid_from ?? null,
     valid_to: certificate.valid_to ?? null,
     fingerprint256: certificate.fingerprint256 ?? null,
-    subject_cn: certificate.subject?.CN ?? null,
-    issuer_cn: certificate.issuer?.CN ?? null,
+    subject_cn: firstDnValue(certificate.subject?.CN),
+    issuer_cn: firstDnValue(certificate.issuer?.CN),
    };
    socket.end();
    resolve(result);
@@ -225,7 +229,7 @@ export async function runNativeHttpTlsChecks(
   const details = await deps.inspectTls(hostname, timeoutMs);
   observations.push({
    check_id: 'tls_handshake', kind: 'tls', outcome: details.authorized ? 'pass' : 'warning', observed_url: `https://${hostname}/`,
-   data: details,
+   data: { ...details },
   });
  } catch (error) {
   observations.push({
