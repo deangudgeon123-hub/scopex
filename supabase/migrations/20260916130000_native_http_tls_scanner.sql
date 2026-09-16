@@ -1,27 +1,4 @@
--- Stage 3: raw native HTTP/TLS observations and worker-facing dev RPCs.
--- These observations are evidence inputs only; Stage 4 turns them into findings.
-
-create table public.scan_observations (
- id uuid primary key default gen_random_uuid(),
- organization_id uuid not null references public.organizations(id) on delete cascade,
- scan_id uuid not null references public.scans(id) on delete cascade,
- check_id text not null check (length(check_id) between 1 and 80 and check_id ~ '^[a-z0-9_]+$'),
- kind text not null check (kind in ('http','tls','redirect','headers','metadata')),
- outcome text not null check (outcome in ('pass','warning','info','error')),
- observed_url text check (observed_url is null or length(observed_url) <= 2048),
- data jsonb not null default '{}'::jsonb check (jsonb_typeof(data) = 'object'),
- collected_at timestamptz not null default now(),
- unique(scan_id, check_id)
-);
-
-alter table public.scan_observations enable row level security;
-create policy "workspace members can read scan observations" on public.scan_observations
- for select to authenticated using (public.can_read_workspace(organization_id));
-
-revoke all on public.scan_observations from anon, authenticated;
-grant select on public.scan_observations to authenticated;
-grant all on public.scan_observations to service_role;
-create index scan_observations_scan_idx on public.scan_observations(scan_id, collected_at);
+-- Stage 3 worker-facing dev RPCs. Raw observations live in scan_observations.
 
 create or replace function public.lease_next_operator_scan(p_token text, p_worker_id text)
 returns table(
@@ -90,11 +67,12 @@ create or replace function public.complete_operator_scan_native(
 returns boolean language plpgsql security definer set search_path = '' as $$
 declare
  v_context scopex_private.operator_context%rowtype;
+ v_asset_id uuid;
  v_item jsonb;
- v_check_id text;
+ v_key text;
  v_kind text;
- v_outcome text;
- v_observed_url text;
+ v_status text;
+ v_summary text;
  v_data jsonb;
  v_count integer;
 begin
@@ -107,22 +85,28 @@ begin
  v_count := jsonb_array_length(p_observations);
  if v_count < 1 or v_count > 32 then raise exception 'INVALID_OBSERVATION_COUNT' using errcode='22023'; end if;
 
+ select s.asset_id into v_asset_id
+ from public.scans s join public.scan_jobs j on j.scan_id=s.id and j.organization_id=s.organization_id
+ where s.id=p_scan_id and s.organization_id=v_context.organization_id and s.status='running' and j.status='leased';
+ if not found then raise exception 'INVALID_SCAN_TRANSITION' using errcode='P0001'; end if;
+
  for v_item in select value from jsonb_array_elements(p_observations) loop
   if jsonb_typeof(v_item) <> 'object' then raise exception 'INVALID_OBSERVATION' using errcode='22023'; end if;
-  v_check_id := trim(coalesce(v_item->>'check_id',''));
-  v_kind := trim(coalesce(v_item->>'kind',''));
-  v_outcome := trim(coalesce(v_item->>'outcome',''));
-  v_observed_url := nullif(trim(coalesce(v_item->>'observed_url','')), '');
+  v_key := trim(coalesce(v_item->>'check_id',''));
+  v_kind := case trim(coalesce(v_item->>'kind','')) when 'headers' then 'header' when 'metadata' then 'network' else trim(coalesce(v_item->>'kind','')) end;
+  v_status := case trim(coalesce(v_item->>'outcome','')) when 'warning' then 'warn' else trim(coalesce(v_item->>'outcome','')) end;
+  v_summary := trim(coalesce(v_item->>'summary',''));
   v_data := coalesce(v_item->'data', '{}'::jsonb);
-  if v_check_id !~ '^[a-z0-9_]{1,80}$'
-     or v_kind not in ('http','tls','redirect','headers','metadata')
-     or v_outcome not in ('pass','warning','info','error')
-     or (v_observed_url is not null and length(v_observed_url) > 2048)
-     or jsonb_typeof(v_data) <> 'object' then
+  if length(v_key) < 1 or length(v_key) > 120
+     or v_kind not in ('http','tls','header','redirect','network')
+     or v_status not in ('pass','warn','info','error')
+     or length(v_summary) < 1 or length(v_summary) > 500
+     or jsonb_typeof(v_data) <> 'object'
+     or octet_length(v_data::text) > 8192 then
    raise exception 'INVALID_OBSERVATION' using errcode='22023';
   end if;
-  insert into public.scan_observations(organization_id,scan_id,check_id,kind,outcome,observed_url,data)
-  values(v_context.organization_id,p_scan_id,v_check_id,v_kind,v_outcome,v_observed_url,v_data);
+  insert into public.scan_observations(organization_id,scan_id,asset_id,observation_key,kind,status,summary,data)
+  values(v_context.organization_id,p_scan_id,v_asset_id,v_key,v_kind,v_status,v_summary,v_data);
  end loop;
 
  update public.scan_jobs set status='completed', lease_expires_at=null
