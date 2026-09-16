@@ -44,10 +44,10 @@ begin
  end if;
 
  select sj.scan_id into v_scan_id
- from public.scan_jobs sj
- join public.scans s on s.id = sj.scan_id
- join public.scopes sc on sc.id = s.scope_id and sc.asset_id = s.asset_id
- join scopex_private.operator_targets t on t.asset_id = s.asset_id and t.scope_id = s.scope_id
+ from public.scan_jobs as sj
+ join public.scans as s on s.id = sj.scan_id
+ join public.scopes as sc on sc.id = s.scope_id and sc.asset_id = s.asset_id
+ join scopex_private.operator_targets as t on t.asset_id = s.asset_id and t.scope_id = s.scope_id
  where sj.status = 'queued'
    and sj.available_at <= now()
    and sj.attempts < 3
@@ -60,25 +60,25 @@ begin
 
  if v_scan_id is null then return; end if;
 
- update public.scan_jobs
- set status='leased', attempts=attempts+1, worker_id=trim(p_worker_id), lease_expires_at=now()+interval '5 minutes'
- where scan_id=v_scan_id and status='queued';
+ update public.scan_jobs as sj
+ set status='leased', attempts=sj.attempts+1, worker_id=trim(p_worker_id), lease_expires_at=now()+interval '5 minutes'
+ where sj.scan_id=v_scan_id and sj.status='queued';
  if not found then raise exception 'INVALID_JOB_TRANSITION' using errcode='P0001'; end if;
 
- update public.scans
- set status='running', started_at=coalesce(started_at,now()), failure_code=null
- where id=v_scan_id and status='queued';
+ update public.scans as s
+ set status='running', started_at=coalesce(s.started_at,now()), failure_code=null
+ where s.id=v_scan_id and s.status='queued';
  if not found then raise exception 'INVALID_SCAN_TRANSITION' using errcode='P0001'; end if;
 
  insert into public.scan_events(organization_id,scan_id,event_type,message)
  select s.organization_id,s.id,'running','Native configuration assessment leased by worker.'
- from public.scans s where s.id=v_scan_id;
+ from public.scans as s where s.id=v_scan_id;
 
  return query
  select s.id, t.hostname, t.origin, p.max_requests, p.requests_per_second, p.timeout_seconds
- from public.scans s
- join public.scan_policies p on p.id=s.policy_id
- join scopex_private.operator_targets t on t.asset_id=s.asset_id and t.scope_id=s.scope_id
+ from public.scans as s
+ join public.scan_policies as p on p.id=s.policy_id
+ join scopex_private.operator_targets as t on t.asset_id=s.asset_id and t.scope_id=s.scope_id
  where s.id=v_scan_id;
 end; $$;
 
@@ -97,9 +97,9 @@ begin
  if v_expected > 50 then raise exception 'TOO_MANY_OBSERVATIONS' using errcode='22023'; end if;
 
  select s.organization_id,s.asset_id into strict v_org,v_asset
- from public.scans s where s.id=p_scan_id and s.status='running';
+ from public.scans as s where s.id=p_scan_id and s.status='running';
 
- delete from public.scan_observations where scan_id=p_scan_id;
+ delete from public.scan_observations as o where o.scan_id=p_scan_id;
 
  insert into public.scan_observations(organization_id,scan_id,asset_id,observation_key,kind,status,summary,data)
  select v_org,p_scan_id,v_asset,trim(x.observation_key),x.kind,x.status,trim(x.summary),coalesce(x.data,'{}'::jsonb)
@@ -132,24 +132,24 @@ declare
  v_code text;
 begin
  if p_checks_run < 0 or p_pages_checked < 0 then raise exception 'INVALID_SCAN_COUNTS' using errcode='22023'; end if;
- select organization_id into strict v_org from public.scans where id=p_scan_id;
+ select s.organization_id into strict v_org from public.scans as s where s.id=p_scan_id;
 
  if p_failure_code is null then
-  update public.scan_jobs set status='completed', lease_expires_at=null
-  where scan_id=p_scan_id and status='leased';
+  update public.scan_jobs as sj set status='completed', lease_expires_at=null
+  where sj.scan_id=p_scan_id and sj.status='leased';
   if not found then raise exception 'INVALID_JOB_TRANSITION' using errcode='P0001'; end if;
-  update public.scans set status='completed', completed_at=now(), checks_run=p_checks_run, pages_checked=p_pages_checked, failure_code=null
-  where id=p_scan_id and status='running';
+  update public.scans as s set status='completed', completed_at=now(), checks_run=p_checks_run, pages_checked=p_pages_checked, failure_code=null
+  where s.id=p_scan_id and s.status='running';
   if not found then raise exception 'INVALID_SCAN_TRANSITION' using errcode='P0001'; end if;
   insert into public.scan_events(organization_id,scan_id,event_type,message)
   values(v_org,p_scan_id,'completed','Native configuration assessment completed.');
  else
   v_code := left(coalesce(nullif(trim(p_failure_code),''),'SCAN_FAILED'),120);
-  update public.scan_jobs set status='failed', lease_expires_at=null
-  where scan_id=p_scan_id and status in ('queued','leased');
+  update public.scan_jobs as sj set status='failed', lease_expires_at=null
+  where sj.scan_id=p_scan_id and sj.status in ('queued','leased');
   if not found then raise exception 'INVALID_JOB_TRANSITION' using errcode='P0001'; end if;
-  update public.scans set status='failed', completed_at=now(), checks_run=p_checks_run, pages_checked=p_pages_checked, failure_code=v_code
-  where id=p_scan_id and status in ('queued','running');
+  update public.scans as s set status='failed', completed_at=now(), checks_run=p_checks_run, pages_checked=p_pages_checked, failure_code=v_code
+  where s.id=p_scan_id and s.status in ('queued','running');
   if not found then raise exception 'INVALID_SCAN_TRANSITION' using errcode='P0001'; end if;
   insert into public.scan_events(organization_id,scan_id,event_type,message)
   values(v_org,p_scan_id,'failed','Native configuration assessment failed.');
