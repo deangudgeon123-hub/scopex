@@ -11,6 +11,7 @@ export type NativeObservation = {
  check_id: string;
  kind: ObservationKind;
  outcome: ObservationOutcome;
+ summary: string;
  observed_url: string | null;
  data: Record<string, string | number | boolean | null>;
 };
@@ -186,12 +187,12 @@ export async function runNativeHttpTlsChecks(
  try {
   httpsSnapshot = await deps.requestRoot('https:', hostname, timeoutMs);
   observations.push({
-   check_id: 'https_response', kind: 'http', outcome: 'pass', observed_url: `https://${hostname}/`,
+   check_id: 'https_response', kind: 'http', outcome: 'pass', summary: 'HTTPS root responded.', observed_url: `https://${hostname}/`,
    data: { status: httpsSnapshot.status },
   });
  } catch (error) {
   observations.push({
-   check_id: 'https_response', kind: 'http', outcome: 'error', observed_url: `https://${hostname}/`,
+   check_id: 'https_response', kind: 'http', outcome: 'error', summary: 'HTTPS root request failed.', observed_url: `https://${hostname}/`,
    data: { error: safeError(error) },
   });
  }
@@ -200,27 +201,27 @@ export async function runNativeHttpTlsChecks(
  try {
   const httpSnapshot = await deps.requestRoot('http:', hostname, timeoutMs);
   const location = firstHeader(httpSnapshot.headers, 'location');
+  const redirectsToHttps = httpSnapshot.status >= 300 && httpSnapshot.status < 400 && isSameHostHttpsRedirect(hostname, location);
   observations.push({
-   check_id: 'http_to_https', kind: 'redirect',
-   outcome: httpSnapshot.status >= 300 && httpSnapshot.status < 400 && isSameHostHttpsRedirect(hostname, location) ? 'pass' : 'warning',
-   observed_url: `http://${hostname}/`,
-   data: { status: httpSnapshot.status, location },
+   check_id: 'http_to_https', kind: 'redirect', outcome: redirectsToHttps ? 'pass' : 'warning',
+   summary: redirectsToHttps ? 'HTTP redirects to same-host HTTPS.' : 'HTTP did not prove a same-host HTTPS redirect.',
+   observed_url: `http://${hostname}/`, data: { status: httpSnapshot.status, location },
   });
  } catch (error) {
   observations.push({
-   check_id: 'http_to_https', kind: 'redirect', outcome: 'error', observed_url: `http://${hostname}/`,
+   check_id: 'http_to_https', kind: 'redirect', outcome: 'error', summary: 'HTTP redirect check failed.', observed_url: `http://${hostname}/`,
    data: { error: safeError(error) },
   });
  }
 
  if (httpsSnapshot) {
   observations.push({
-   check_id: 'security_headers', kind: 'headers', outcome: 'info', observed_url: `https://${hostname}/`,
+   check_id: 'security_headers', kind: 'headers', outcome: 'info', summary: 'Recorded presence of selected response security headers.', observed_url: `https://${hostname}/`,
    data: securityHeaderSnapshot(httpsSnapshot.headers),
   });
  } else {
   observations.push({
-   check_id: 'security_headers', kind: 'headers', outcome: 'error', observed_url: `https://${hostname}/`,
+   check_id: 'security_headers', kind: 'headers', outcome: 'error', summary: 'Security headers could not be observed because HTTPS was unavailable.', observed_url: `https://${hostname}/`,
    data: { error: 'HTTPS_HEADERS_UNAVAILABLE' },
   });
  }
@@ -228,12 +229,12 @@ export async function runNativeHttpTlsChecks(
  try {
   const details = await deps.inspectTls(hostname, timeoutMs);
   observations.push({
-   check_id: 'tls_handshake', kind: 'tls', outcome: details.authorized ? 'pass' : 'warning', observed_url: `https://${hostname}/`,
+   check_id: 'tls_handshake', kind: 'tls', outcome: details.authorized ? 'pass' : 'warning', summary: details.authorized ? 'TLS handshake and certificate validation succeeded.' : 'TLS handshake completed without trusted certificate authorization.', observed_url: `https://${hostname}/`,
    data: { ...details },
   });
  } catch (error) {
   observations.push({
-   check_id: 'tls_handshake', kind: 'tls', outcome: 'error', observed_url: `https://${hostname}/`,
+   check_id: 'tls_handshake', kind: 'tls', outcome: 'error', summary: 'TLS handshake or certificate validation failed.', observed_url: `https://${hostname}/`,
    data: { error: safeError(error) },
   });
  }
