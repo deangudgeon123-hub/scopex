@@ -43,10 +43,10 @@ test('native worker leases a queued scan and persists bounded observations', asy
   ];
   await db.query(`select public.complete_operator_scan_native($1,$2,$3::jsonb,$4)`, [scanId,TOKEN,JSON.stringify(observations),1]);
 
+  await db.exec('reset role');
   const status = await db.query<{status:string;checks_run:number;pages_checked:number}>(`select status,checks_run,pages_checked from public.scans where id=$1`, [scanId]);
   assert.deepEqual(status.rows[0], { status: 'completed', checks_run: 4, pages_checked: 1 });
 
-  await db.exec('reset role');
   const stored = await db.query<{check_id:string}>(`select check_id from public.scan_observations where scan_id=$1 order by check_id`, [scanId]);
   assert.deepEqual(stored.rows.map((row) => row.check_id), ['http_to_https','https_response','security_headers','tls_handshake']);
 
