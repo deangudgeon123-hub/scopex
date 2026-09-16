@@ -29,6 +29,12 @@ export interface Scan extends WorkspaceRow {
 }
 export interface ScanJob extends WorkspaceRow { scan_id: UUID; status: 'queued' | 'leased' | 'completed' | 'failed' | 'cancelled'; attempts: number; available_at: Timestamp; lease_expires_at: Timestamp | null; worker_id: string | null }
 export interface ScanEvent extends WorkspaceRow { scan_id: UUID; event_type: string; message: string }
+export interface ScanObservation extends WorkspaceRow {
+ scan_id: UUID; asset_id: UUID; observation_key: string;
+ kind: 'http' | 'tls' | 'header' | 'redirect' | 'network';
+ status: 'pass' | 'warn' | 'info' | 'error';
+ summary: string; data: Json; observed_at: Timestamp;
+}
 export interface Finding extends WorkspaceRow {
  project_id: UUID; asset_id: UUID; fingerprint: string; title: string; severity: Severity; confidence: Confidence;
  category: string; affected_url: string | null; explanation: string; technical_explanation: string | null;

@@ -9,6 +9,14 @@ type OperatorScanStatus = {
  completed_at: string | null;
  failure_code: string | null;
 };
+type OperatorScanLease = {
+ scan_id: string;
+ hostname: string;
+ origin: string;
+ max_requests: number;
+ requests_per_second: number;
+ timeout_seconds: number;
+};
 /** Schema contract maintained alongside migrations; replace with CLI generated types when linked. */
 export type Database = { public: {
  Tables: {
@@ -18,8 +26,8 @@ export type Database = { public: {
  assets: Table<D.Asset, Pick<D.Asset, 'organization_id' | 'project_id' | 'hostname' | 'origin'>>;
  asset_verifications: Table<D.AssetVerification>;
  scopes: Table<D.Scope>; scan_policies: Table<D.ScanPolicy>; scans: Table<D.Scan>;
- scan_jobs: Table<D.ScanJob>; scan_events: Table<D.ScanEvent>; findings: Table<D.Finding>;
- finding_instances: Table<D.FindingInstance>; evidence: Table<D.Evidence>; retests: Table<D.Retest>; audit_logs: Table<D.AuditLog>;
+ scan_jobs: Table<D.ScanJob>; scan_events: Table<D.ScanEvent>; scan_observations: Table<D.ScanObservation>;
+ findings: Table<D.Finding>; finding_instances: Table<D.FindingInstance>; evidence: Table<D.Evidence>; retests: Table<D.Retest>; audit_logs: Table<D.AuditLog>;
  };
  Views: Record<string, never>;
  Functions: {
@@ -27,6 +35,9 @@ export type Database = { public: {
   can_manage_workspace: { Args: { workspace: string }; Returns: boolean };
   request_operator_scan: { Args: { p_hostname: string; p_token: string }; Returns: string };
   get_operator_scan_status: { Args: { p_scan_id: string; p_token: string }; Returns: OperatorScanStatus[] };
+  claim_operator_scan: { Args: { p_worker_id: string }; Returns: OperatorScanLease[] };
+  store_operator_scan_observations: { Args: { p_scan_id: string; p_observations: D.Json }; Returns: number };
+  finish_operator_scan: { Args: { p_scan_id: string; p_checks_run: number; p_pages_checked: number; p_failure_code: string | null }; Returns: boolean };
  };
  Enums: Record<string, never>; CompositeTypes: Record<string, never>;
 } };

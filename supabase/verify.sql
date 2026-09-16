@@ -5,7 +5,7 @@ declare table_name text;
 begin
  foreach table_name in array array['organizations','organization_members','projects',
  'assets','asset_verifications','scopes','scan_policies','scans','scan_jobs',
- 'scan_events','findings','finding_instances','evidence','retests','audit_logs'] loop
+ 'scan_events','scan_observations','findings','finding_instances','evidence','retests','audit_logs'] loop
   if not exists (select 1 from pg_tables t where t.schemaname='public'
     and t.tablename=table_name and t.rowsecurity) then
    raise exception 'Missing table or RLS: %', table_name;

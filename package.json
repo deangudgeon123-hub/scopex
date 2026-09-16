@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "worker:native": "node --import tsx worker/native-scan-worker.ts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

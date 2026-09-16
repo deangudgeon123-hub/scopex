@@ -21,7 +21,7 @@ test('migration applies and isolates tenants; trusted records cannot be forged',
  assert.equal((await db.query('select * from audit_logs')).rows.length, 3);
  await assert.rejects(db.exec(`update assets set verification_status='verified' where id='${assetA}'`), /permission denied/);
  await assert.rejects(db.exec(`insert into assets(organization_id,project_id,hostname,origin,verification_status) values ('${orgA}','${projectA}','evil.com','https://evil.com','verified')`), /permission denied/);
- for (const table of ['asset_verifications','organization_members','scopes','scan_policies','scans','scan_jobs','scan_events','findings','finding_instances','evidence','retests','audit_logs']) {
+ for (const table of ['asset_verifications','organization_members','scopes','scan_policies','scans','scan_jobs','scan_events','scan_observations','findings','finding_instances','evidence','retests','audit_logs']) {
   const privileges = await db.query<{allowed:boolean}>(`select has_table_privilege('authenticated','public.${table}','INSERT') as allowed`);
   assert.equal(privileges.rows[0].allowed, false, table);
  }
