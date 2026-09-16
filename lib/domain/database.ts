@@ -21,12 +21,14 @@ type ScanObservationRow = {
  id: string;
  organization_id: string;
  scan_id: string;
- check_id: string;
- kind: 'http' | 'tls' | 'redirect' | 'headers' | 'metadata';
- outcome: 'pass' | 'warning' | 'info' | 'error';
+ asset_id: string;
+ observation_key: string;
+ kind: 'http' | 'tls' | 'header' | 'redirect' | 'network';
+ status: 'pass' | 'warn' | 'info' | 'error';
+ summary: string;
  observed_url: string | null;
  data: D.Json;
- collected_at: string;
+ observed_at: string;
 };
 /** Schema contract maintained alongside migrations; replace with CLI generated types when linked. */
 export type Database = { public: {
