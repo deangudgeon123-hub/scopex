@@ -27,8 +27,9 @@ test('security header evaluator stays descriptive and does not invent severity',
  assert.equal(observations.some((item) => !['pass','warn','info','error'].includes(item.status)), false);
 });
 
-test('native engine performs bounded HTTP/TLS checks using injected probes', async () => {
+test('native engine performs bounded and rate-limited HTTP/TLS checks using injected probes', async () => {
  const urls: string[] = [];
+ const sleeps: number[] = [];
  const httpProbe = async (url: string): Promise<HttpProbeResult> => {
   urls.push(url);
   if (url.startsWith('http://')) return { requestedUrl: url, statusCode: 301, headers: { location: 'https://example.com/' }, location: 'https://example.com/', remoteAddress: '1.1.1.1' };
@@ -58,8 +59,12 @@ test('native engine performs bounded HTTP/TLS checks using injected probes', asy
   fingerprint256: 'AA:BB',
   remoteAddress: '1.1.1.1',
  });
- const result = await scanNativeConfiguration({ hostname: 'example.com', origin: 'https://example.com', maxRequests: 2 }, { httpProbe, tlsProbe });
+ const result = await scanNativeConfiguration(
+  { hostname: 'example.com', origin: 'https://example.com', maxRequests: 2, requestsPerSecond: 2 },
+  { httpProbe, tlsProbe, sleep: async (ms) => { sleeps.push(ms); } },
+ );
  assert.deepEqual(urls, ['http://example.com/','https://example.com/']);
+ assert.deepEqual(sleeps, [500]);
  assert.equal(result.requestsMade, 2);
  assert.equal(result.pagesChecked, 2);
  assert.equal(result.observations.find((item) => item.observation_key === 'redirect.http_to_https')?.status, 'pass');
