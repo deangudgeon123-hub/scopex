@@ -18,6 +18,9 @@ test('operator scan queue enforces allowlist, token and state transitions', asyn
   await db.query(`select scopex_private.configure_operator_token($1)`, [TOKEN]);
   await db.query(`select scopex_private.register_operator_target($1,$2)`, ['example.com','https://example.com']);
 
+  await db.exec('set role authenticated');
+  await assert.rejects(db.query(`select public.request_operator_scan($1,$2)`, ['example.com',TOKEN]), /permission denied/);
+
   await db.exec('set role anon');
   await assert.rejects(db.query(`select public.request_operator_scan($1,$2)`, ['example.com','wrong-token']), /OPERATOR_UNAUTHORIZED/);
   await assert.rejects(db.query(`select public.request_operator_scan($1,$2)`, ['evil.example.com',TOKEN]), /TARGET_NOT_ALLOWED/);
