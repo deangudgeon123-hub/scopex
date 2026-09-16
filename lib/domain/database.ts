@@ -9,6 +9,25 @@ type OperatorScanStatus = {
  completed_at: string | null;
  failure_code: string | null;
 };
+type NativeScanLease = {
+ scan_id: string;
+ hostname: string;
+ origin: string;
+ max_requests: number;
+ requests_per_second: number;
+ timeout_seconds: number;
+};
+type ScanObservationRow = {
+ id: string;
+ organization_id: string;
+ scan_id: string;
+ check_id: string;
+ kind: 'http' | 'tls' | 'redirect' | 'headers' | 'metadata';
+ outcome: 'pass' | 'warning' | 'info' | 'error';
+ observed_url: string | null;
+ data: D.Json;
+ collected_at: string;
+};
 /** Schema contract maintained alongside migrations; replace with CLI generated types when linked. */
 export type Database = { public: {
  Tables: {
@@ -18,8 +37,9 @@ export type Database = { public: {
  assets: Table<D.Asset, Pick<D.Asset, 'organization_id' | 'project_id' | 'hostname' | 'origin'>>;
  asset_verifications: Table<D.AssetVerification>;
  scopes: Table<D.Scope>; scan_policies: Table<D.ScanPolicy>; scans: Table<D.Scan>;
- scan_jobs: Table<D.ScanJob>; scan_events: Table<D.ScanEvent>; findings: Table<D.Finding>;
- finding_instances: Table<D.FindingInstance>; evidence: Table<D.Evidence>; retests: Table<D.Retest>; audit_logs: Table<D.AuditLog>;
+ scan_jobs: Table<D.ScanJob>; scan_events: Table<D.ScanEvent>; scan_observations: Table<ScanObservationRow>;
+ findings: Table<D.Finding>; finding_instances: Table<D.FindingInstance>; evidence: Table<D.Evidence>;
+ retests: Table<D.Retest>; audit_logs: Table<D.AuditLog>;
  };
  Views: Record<string, never>;
  Functions: {
@@ -27,6 +47,9 @@ export type Database = { public: {
   can_manage_workspace: { Args: { workspace: string }; Returns: boolean };
   request_operator_scan: { Args: { p_hostname: string; p_token: string }; Returns: string };
   get_operator_scan_status: { Args: { p_scan_id: string; p_token: string }; Returns: OperatorScanStatus[] };
+  lease_next_operator_scan: { Args: { p_token: string; p_worker_id: string }; Returns: NativeScanLease[] };
+  complete_operator_scan_native: { Args: { p_scan_id: string; p_token: string; p_observations: D.Json; p_pages_checked?: number }; Returns: boolean };
+  fail_operator_scan_native: { Args: { p_scan_id: string; p_token: string; p_failure_code: string }; Returns: boolean };
  };
  Enums: Record<string, never>; CompositeTypes: Record<string, never>;
 } };
